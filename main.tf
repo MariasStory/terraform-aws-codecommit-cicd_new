@@ -11,11 +11,11 @@ provider "aws" {
 
 # Generate a unique label for naming resources
 module "unique_label" {
-  source     = "git::https://github.com/cloudposse/terraform-null-label.git?ref=tags/0.12.0"
+  source     = "git::https://github.com/cloudposse/terraform-null-label.git"
   namespace  = var.organization_name
   name       = var.repo_name
   stage      = var.environment
-  delimiter  = var.char_delimiter
+  # delimiter  = var.char_delimiter
   attributes = []
   tags       = {}
 }
@@ -30,7 +30,7 @@ resource "aws_codecommit_repository" "repo" {
 # CodePipeline resources
 resource "aws_s3_bucket" "build_artifact_bucket" {
   bucket        = module.unique_label.id
-  acl           = "private"
+  # acl           = "private"
   force_destroy = var.force_artifact_destroy
 }
 
@@ -102,6 +102,10 @@ resource "aws_iam_role_policy" "codebuild_policy" {
   policy = data.template_file.codebuild_policy_template.rendered
 }
 
+
+# AWS identity
+data "aws_caller_identity" "current" {}
+
 # CodeBuild Section for the Package stage
 resource "aws_codebuild_project" "build_project" {
   name           = "${var.repo_name}-package"
@@ -119,6 +123,18 @@ resource "aws_codebuild_project" "build_project" {
     image           = var.build_image
     type            = "LINUX_CONTAINER"
     privileged_mode = var.build_privileged_override
+    environment_variable {
+      name  = "AWS_ACCOUNT_ID"
+      value = data.aws_caller_identity.current.account_id
+    }
+    environment_variable {
+      name  = "AWS_DEFAULT_REGION"
+      value = var.aws_region
+    }
+    environment_variable {
+      name  = "IMAGE_REPO_NAME"
+      value = var.repo_name
+    }
   }
 
   source {
@@ -220,4 +236,40 @@ resource "aws_codepipeline" "codepipeline" {
       }
     }
   }
+}
+
+#####
+# ECR
+#####
+
+resource "aws_ecr_repository" "main" {
+  name                 = "${var.ecr_name}"
+  # image_tag_mutab ility = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = false
+  }
+}
+
+resource "aws_ecr_lifecycle_policy" "main" {
+  repository = aws_ecr_repository.main.name
+
+  policy = jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "keep last 2 images"
+      action       = {
+        type = "expire"
+      }
+      selection     = {
+        tagStatus   = "any"
+        countType   = "imageCountMoreThan"
+        countNumber = 2
+      }
+    }]
+  })
+}
+
+output "aws_ecr_repository_url" {
+    value = aws_ecr_repository.main.repository_url
 }

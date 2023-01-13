@@ -19,10 +19,10 @@ variable "organization_name" {
   default     = "acme"
 }
 
-variable "char_delimiter" {
-  description = "The delimiter to use for unique names (default: -)"
-  default     = "-"
-}
+# variable "char_delimiter" {
+#   description = "The delimiter to use for unique names (default: -)"
+#   default     = "-"
+# }
 
 variable "repo_name" {
   description = "The name of the CodeCommit repository (e.g. new-repo)."
@@ -72,4 +72,9 @@ variable "test_buildspec" {
 variable "package_buildspec" {
   description = "The buildspec to be used for the Package stage (default: buildspec.yml)"
   default     = "buildspec.yml"
+}
+variable "ecr_name" {
+  description = "the name of your ECR stack, e.g. \"demo\""
+  type        = string
+  default     = "gso-ecr-stack"
 }
